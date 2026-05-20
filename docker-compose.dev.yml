@@ -1,0 +1,99 @@
+
+
+services:
+  # =================================================================
+  # 1. INFRAESTRUTURA DE DADOS E TESTES (Backend)
+  # =================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_container
+    restart: always  
+    ports:
+      - "5432:5432"
+    environment:
+      - TZ=America/Sao_Paulo
+      # Estes são os nomes exatos que o Postgres exige para criar tudo sozinho:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=sistema-epi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_container
+    restart: always
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@admin.com"
+      PGADMIN_DEFAULT_PASSWORD: "admin"
+    depends_on:
+      - postgres
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: mailpit_container
+    restart: always
+    ports:
+      - "8025:8025" 
+      - "1025:1025" 
+    environment:
+      MP_MAX_MESSAGES: 500
+
+  # =================================================================
+  # 2. API GO E NGINX
+  # =================================================================
+  api:
+    container_name: api_epi
+    restart: always
+    build:
+      context: ./gestao-de-epi--backEnd        # <-- Define que o build acontece dentro da pasta backend
+      dockerfile: Dockerfile.dev
+    depends_on:
+      - postgres
+      - mailpit
+    env_file:
+      - ./gestao-de-epi--backEnd/.env
+    volumes:
+      - ./gestao-de-epi--backEnd:/app         # <-- Espelha a pasta local do backend para dentro do container
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      # O restante puxa automático do env_file
+      - SMTP_HOST=mailpit 
+      - SMTP_PORT=1025
+        
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./gestao-de-epi--backEnd/nginx.dev.conf:/etc/nginx/nginx.conf:ro # <-- Aponta para o arquivo dentro do backend
+    depends_on:
+      - api
+
+  # =================================================================
+  # 3. FRONTEND (React)
+  # =================================================================
+  front:
+    container_name: api_front
+    restart: always
+    build:
+      context: ./SGEPI-FRONT-END      # <-- Define que o build acontece dentro da pasta frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./SGEPI-FRONT-END/.env         # <-- Lê as variáveis do frontend
+    command: npm start 
+    volumes:
+      - ./SGEPI-FRONT-END:/app         # <-- Espelha a pasta local do front para dentro do container
+      - /app/node_modules       # <-- Protege o node_modules do container
+    environment:
+      - CHOKIDAR_USEPOLLING=true 
+      - WATCHPACK_POLLING=true
+
+volumes:
+  postgres_data:
