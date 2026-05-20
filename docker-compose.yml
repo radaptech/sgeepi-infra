@@ -5,7 +5,7 @@ services:
   # 1. API GO (Backend)
   # =================================================================
   api:
-    container_name: api_epi_prod
+    container_name: api_epi
     restart: always
     build:
       context: ./gestao-de-epi--backEnd        # <-- Define que o build acontece dentro da pasta backend
@@ -21,7 +21,7 @@ services:
   # 2. NGINX + FRONTEND REACT
   # =================================================================
   nginx:
-    container_name: nginx_prod
+    container_name: nginx
     restart: always
     build:
       context: ./SGEPI-FRONT-END

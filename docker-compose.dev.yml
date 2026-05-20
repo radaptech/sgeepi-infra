@@ -59,7 +59,7 @@ services:
       - ./gestao-de-epi--backEnd:/app         # <-- Espelha a pasta local do backend para dentro do container
     environment:
       - DB_HOST=postgres
-      - DB_PORT=5432
+      - DB_PORT=5432l
       # O restante puxa automático do env_file
       - SMTP_HOST=mailpit 
       - SMTP_PORT=1025
