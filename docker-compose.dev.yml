@@ -1,8 +1,28 @@
-
-
 services:
   # =================================================================
-  # 1. INFRAESTRUTURA DE DADOS E TESTES (Backend)
+  # INFRAESTRUTURA: Traefik (Substitui o Nginx)
+  # =================================================================
+  traefik:
+    image: traefik:v2.11 # Mude de v3.0 para v2.11
+    container_name: traefik_container
+    restart: always
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  # =================================================================
+  # 1. INFRAESTRUTURA DE DADOS
   # =================================================================
   postgres:
     image: postgres:16-alpine
@@ -12,7 +32,6 @@ services:
       - "5432:5432"
     environment:
       - TZ=America/Sao_Paulo
-      # Estes são os nomes exatos que o Postgres exige para criar tudo sozinho:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=sistema-epi
@@ -42,13 +61,13 @@ services:
       MP_MAX_MESSAGES: 500
 
   # =================================================================
-  # 2. API GO E NGINX
+  # 2. API GO
   # =================================================================
   api:
     container_name: api_epi
     restart: always
     build:
-      context: ./gestao-de-epi--backEnd        # <-- Define que o build acontece dentro da pasta backend
+      context: ./gestao-de-epi--backEnd
       dockerfile: Dockerfile.dev
     depends_on:
       - postgres
@@ -56,44 +75,50 @@ services:
     env_file:
       - ./gestao-de-epi--backEnd/.env
     volumes:
-      - ./gestao-de-epi--backEnd:/app         # <-- Espelha a pasta local do backend para dentro do container
+      - ./gestao-de-epi--backEnd:/app
     environment:
       - DB_HOST=postgres
-      - DB_PORT=5432l
-      # O restante puxa automático do env_file
+      - DB_PORT=5432
       - SMTP_HOST=mailpit 
       - SMTP_PORT=1025
-        
-  nginx:
-    image: nginx:alpine
-    container_name: nginx_dev
-    ports:
-      - "80:80"
-    volumes:
-      - ./gestao-de-epi--backEnd/nginx.dev.conf:/etc/nginx/nginx.conf:ro # <-- Aponta para o arquivo dentro do backend
-    depends_on:
-      - api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.localhost`) || PathPrefix(`/api`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      # Esta linha abaixo é a que resolve o erro de 'port is missing'
+      - "traefik.http.services.api.loadbalancer.server.port=8080"
+      # Adicione esta para forçar o nome do serviço
+      - "traefik.http.routers.api.service=api"
 
   # =================================================================
   # 3. FRONTEND (React)
+  # =================================================================
   # =================================================================
   front:
     container_name: api_front
     restart: always
     build:
-      context: ./SGEPI-FRONT-END      # <-- Define que o build acontece dentro da pasta frontend
+      context: ./SGEPI-FRONT-END
       dockerfile: Dockerfile.dev
-    ports:
-      - "3000:3000"
     env_file:
-      - ./SGEPI-FRONT-END/.env         # <-- Lê as variáveis do frontend
+      - ./SGEPI-FRONT-END/.env
     command: npm start 
     volumes:
-      - ./SGEPI-FRONT-END:/app         # <-- Espelha a pasta local do front para dentro do container
-      - /app/node_modules       # <-- Protege o node_modules do container
+      - ./SGEPI-FRONT-END:/app
+      - /app/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true 
       - WATCHPACK_POLLING=true
+      - WDS_SOCKET_PORT=0
+    labels:
+      - "traefik.enable=true"
+      # A MÁGICA ACONTECE AQUI: Permite localhost puro OU qualquer subdomínio + localhost
+      - "traefik.http.routers.front-router.rule=(Host(`localhost`) || HostRegexp(`{subdomain:[a-zA-Z0-9-]+}.localhost`)) && !PathPrefix(`/api`)"
+      - "traefik.http.routers.front-router.entrypoints=web"
+      - "traefik.http.routers.front-router.service=front-service"
+      - "traefik.http.services.front-service.loadbalancer.server.port=3000"
+      - "traefik.http.services.front-service.loadbalancer.passhostheader=true"
+      
 
 volumes:
   postgres_data:
