@@ -1,6 +1,6 @@
 services:
   # =================================================================
-  # INFRAESTRUTURA: Traefik (Substitui o Nginx)
+  # INFRAESTRUTURA: Traefik 
   # =================================================================
   traefik:
     image: traefik:v2.11 # Mude de v3.0 para v2.11
@@ -18,6 +18,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.localhost`)"
       - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.priority=100"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
@@ -37,7 +38,6 @@ services:
       - POSTGRES_DB=sistema-epi
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # 👇 FREIO DE SEGURANÇA ADICIONADO AQUI
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d sistema-epi"]
       interval: 5s
@@ -71,14 +71,13 @@ services:
   # =================================================================
   api:
     container_name: api_epi
-    restart: always
+    restart: on-failure:5
     build:
       context: ./gestao-de-epi--backEnd
       dockerfile: Dockerfile.dev
-    # 👇 REGRA DE ESPERA ADICIONADA AQUI
     depends_on:
       postgres:
-        condition: service_healthy # Só liga o Go quando o Postgres disser "ESTOU PRONTO"
+        condition: service_healthy 
       mailpit:
         condition: service_started
     env_file:
