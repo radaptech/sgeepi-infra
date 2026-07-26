@@ -95,6 +95,9 @@ services:
       - "traefik.http.routers.api.entrypoints=web"
       - "traefik.http.services.api.loadbalancer.server.port=8080"
       - "traefik.http.routers.api.service=api"
+      - "traefik.http.middlewares.cors-header.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
+      - "traefik.http.middlewares.cors-header.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.cors-header.headers.accesscontrolalloworiginlist=http://*.localhost,http://localhost:3000"
 
   # =================================================================
   # 3. FRONTEND (React)
